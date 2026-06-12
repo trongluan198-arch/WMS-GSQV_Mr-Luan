@@ -48,6 +48,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .sv{font-size:22px;font-weight:700;margin-top:2px;}
 .ss{font-size:10px;color:var(--muted);}
 .tw{overflow-x:auto;}
+#page-inventory .tw table thead tr th{position:sticky;top:0;background:var(--card);z-index:10;box-shadow:0 1px 0 var(--border);}
+#page-inventory{overflow-y:auto;}
 table{width:100%;border-collapse:collapse;font-size:12px;}
 thead th{background:#f8f9fb;padding:8px 9px;text-align:left;font-weight:600;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;}
 thead th:hover{background:#f1f3f6;}
@@ -261,7 +263,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
     <!-- BATCH MODE -->
     <div id="lbl-batch-panel" class="hidden">
       <div class="card" style="margin-bottom:12px;">
-        <div class="ch"><span class="ct">📦 Tạo nhiều tem cùng lúc</span><div style="display:flex;gap:6px;"><button class="btn btn-sm btn-o" onclick="addBatchRow()">＋ Thêm dòng</button><button class="btn btn-sm btn-p" onclick="genBatch()">🏷️ Tạo tất cả</button><button class="btn btn-sm btn-s" onclick="saveBatch()">💾 Lưu tất cả</button><button class="btn btn-sm btn-p" onclick="printBatch()">🖨️ In tất cả</button></div></div>
+        <div class="ch"><span class="ct">📦 Tạo nhiều tem cùng lúc</span><div style="display:flex;gap:5px;flex-wrap:wrap;"><button class="btn btn-sm btn-o" onclick="dlBatchTpl()">⬇️ Mẫu Excel</button><label class="btn btn-sm btn-w" style="cursor:pointer;margin:0;">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="importBatchXL(event)" style="display:none;"></label><button class="btn btn-sm btn-o" onclick="addBatchRow()">＋ Thêm dòng</button><button class="btn btn-sm btn-p" onclick="genBatch()">🏷️ Tạo tất cả</button><button class="btn btn-sm btn-s" onclick="saveBatch()">💾 Lưu tất cả</button><button class="btn btn-sm btn-p" onclick="printBatch()">🖨️ In tất cả</button></div></div>
         <div class="alert ai" style="margin-bottom:10px;font-size:11px;">💡 Mặc định 10 dòng sẵn. Nhập mã Bravo <strong>hoặc tên SP</strong> đều ra gợi ý và tự điền. Khi tạo tem: <strong>dòng trống sẽ bị bỏ qua</strong>.</div>
         <div class="tw" style="max-height:360px;overflow-y:auto;">
           <table id="batch-tbl">
@@ -283,11 +285,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
         <div class="ch"><span class="ct">Thông tin tem QR</span></div>
         <div class="fr2">
           <div class="fg"><label>Mã Bravo *</label>
-            <div class="acw"><input type="text" id="lbl-bravo" placeholder="Nhập hoặc tìm mã Bravo..." oninput="bravoAC()" onblur="setTimeout(()=&gt;hideAC(&#39;acl-bravo&#39;),180)" autocomplete="off">
+            <div class="acw"><input type="text" id="lbl-bravo" placeholder="Nhập hoặc tìm mã Bravo..." oninput="bravoAC()" onblur="setTimeout(()=>{hideAC(&#39;acl-bravo&#39;);autoFillUnit(&#39;bravo&#39;);},200)" autocomplete="off">
             <div id="acl-bravo" class="acl hidden"></div></div>
           </div>
           <div class="fg"><label>Tên sản phẩm *</label>
-            <div class="acw"><input type="text" id="lbl-name" placeholder="Nhập hoặc tìm tên SP..." oninput="nameAC()" onblur="setTimeout(()=&gt;hideAC(&#39;acl-name&#39;),180)" autocomplete="off">
+            <div class="acw"><input type="text" id="lbl-name" placeholder="Nhập hoặc tìm tên SP..." oninput="nameAC()" onblur="setTimeout(()=>{hideAC(&#39;acl-name&#39;);autoFillUnit(&#39;name&#39;);},200)" autocomplete="off">
             <div id="acl-name" class="acl hidden"></div></div>
           </div>
         </div>
@@ -462,7 +464,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
   <!-- INVENTORY -->
   <div class="page" id="page-inventory">
     <div class="card">
-      <div class="ch">
+      <div style="position:sticky;top:0;z-index:20;background:var(--card);padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:8px;">
+      <div class="ch" style="margin-bottom:6px;">
         <span class="ct">📋 Tồn kho — Ngày tồn = Hôm nay − Ngày nhập kho</span>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn btn-sm btn-s" id="btn-excel" onclick="expInvExcelSmart()">📊 Xuất Excel</button>
@@ -496,6 +499,7 @@ Vít M6x20mm" style="height:60px;background:#fff;"></textarea>
           <button id="inv-view-summary" onclick="setInvView(&#39;summary&#39;)" style="padding:5px 12px;font-size:11px;font-weight:600;background:#fff;color:var(--muted);border:none;cursor:pointer;">📊 Tồn tổng</button>
         </div>
       </div>
+      </div><!-- /sticky-header -->
       <!-- SUMMARY VIEW (tồn theo mã Bravo) -->
       <div id="inv-summary-wrap" class="hidden">
         <div class="tw"><table>
@@ -1113,6 +1117,9 @@ function bravoAC(){
   if(!val){lst.classList.add('hidden');return;}
   const m=DB.gC().filter(c=>c.bravoCode.toLowerCase().includes(val)||c.productName.toLowerCase().includes(val)).slice(0,8);
   if(!m.length){lst.classList.add('hidden');return;}
+  // Nếu khớp chính xác mã Bravo → điền luôn ĐVT mà không cần chọn
+  const exact=m.find(c=>c.bravoCode.toLowerCase()===val);
+  if(exact){document.getElementById('lbl-unit').value=exact.unit;if(!gv('lbl-name').trim())document.getElementById('lbl-name').value=exact.productName;if(!gv('lbl-customer').trim()&&exact.customer)document.getElementById('lbl-customer').value=exact.customer;}
   lst.innerHTML=m.map(c=>`<div class="aci" onmousedown="selBravo('${esc(c.bravoCode)}','${esc(c.productName)}','${c.unit}','${esc(c.customer||'')}')"><span class="ac-code">${c.bravoCode}</span> — <span style="color:var(--muted)">${c.productName}</span></div>`).join('');
   lst.classList.remove('hidden');
 }
@@ -1121,6 +1128,9 @@ function nameAC(){
   if(!val){lst.classList.add('hidden');return;}
   const m=DB.gC().filter(c=>c.productName.toLowerCase().includes(val)||c.bravoCode.toLowerCase().includes(val)).slice(0,8);
   if(!m.length){lst.classList.add('hidden');return;}
+  // Nếu khớp chính xác tên SP → điền luôn ĐVT mà không cần chọn
+  const exact=m.find(c=>c.productName.toLowerCase()===val);
+  if(exact){document.getElementById('lbl-unit').value=exact.unit;if(!gv('lbl-bravo').trim())document.getElementById('lbl-bravo').value=exact.bravoCode;if(!gv('lbl-customer').trim()&&exact.customer)document.getElementById('lbl-customer').value=exact.customer;}
   lst.innerHTML=m.map(c=>`<div class="aci" onmousedown="selBravo('${esc(c.bravoCode)}','${esc(c.productName)}','${c.unit}','${esc(c.customer||'')}')"><span class="ac-code">${c.bravoCode}</span> — <span style="color:var(--muted)">${c.productName}</span></div>`).join('');
   lst.classList.remove('hidden');
 }
@@ -1139,6 +1149,17 @@ function selBravo(code,name,unit,customer){
   if(customer&&document.getElementById('lbl-customer'))document.getElementById('lbl-customer').value=customer;
   document.getElementById('acl-bravo').classList.add('hidden');
   if(document.getElementById('acl-name'))document.getElementById('acl-name').classList.add('hidden');
+}
+// Tự điền ĐVT khi người dùng rời khỏi ô mã Bravo / tên SP (gõ tay không chọn gợi ý)
+function autoFillUnit(mode){
+  const C=DB.gC();let cat=null;
+  if(mode==='bravo'){const v=gv('lbl-bravo').trim();if(!v)return;cat=C.find(c=>c.bravoCode===v)||C.find(c=>c.bravoCode.toLowerCase()===v.toLowerCase());}
+  else{const v=gv('lbl-name').trim();if(!v)return;cat=C.find(c=>c.productName===v)||C.find(c=>c.productName.toLowerCase()===v.toLowerCase());}
+  if(!cat)return;
+  document.getElementById('lbl-unit').value=cat.unit;
+  if(mode==='bravo'&&!gv('lbl-name').trim())document.getElementById('lbl-name').value=cat.productName;
+  if(mode==='name'&&!gv('lbl-bravo').trim())document.getElementById('lbl-bravo').value=cat.bravoCode;
+  const custEl=document.getElementById('lbl-customer');if(custEl&&!gv('lbl-customer').trim()&&cat.customer)custEl.value=cat.customer;
 }
 function hideAC(id){document.getElementById(id).classList.add('hidden');}
 
@@ -1253,9 +1274,9 @@ function renderTodayLbls(){
 let recvLblId=null;
 function resetRecv(){
   recvLblId=null;
-  const i=document.getElementById('recv-lbl');if(i){i.value='';i.focus();}
   document.getElementById('recv-s1').classList.remove('hidden');document.getElementById('recv-s2').classList.add('hidden');
   stps(['sr1','sr2','sr3'],1);hal('recv-alert');
+  setTimeout(()=>{const i=document.getElementById('recv-lbl');if(i){i.value='';i.focus();}},50);
 }
 function recvStep1(){
   const val=gv('recv-lbl').trim();if(!val)return;
@@ -1327,10 +1348,10 @@ function renderMvHist(){
 let isLblId=null,isQty=0;
 function resetIs(){
   isLblId=null;isQty=0;
-  const i=document.getElementById('is-lbl');if(i)i.value='';
   ['is-qty','is-reason'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   document.getElementById('is-s1').classList.remove('hidden');document.getElementById('is-s2').classList.add('hidden');document.getElementById('is-s3').classList.add('hidden');
   stps(['si1','si2','si3'],1);hal('is-alert');document.getElementById('is-fifo').classList.add('hidden');
+  setTimeout(()=>{const i=document.getElementById('is-lbl');if(i){i.value='';i.focus();}},50);
 }
 function isStep1(){
   const val=gv('is-lbl').trim();if(!val)return;
@@ -1741,6 +1762,54 @@ function importCat(e){
     }catch(err){alert('❌ Lỗi: '+err.message);}
   };reader.readAsBinaryString(file);e.target.value='';
 }
+// Tải mẫu Excel cho tạo nhiều tem
+function dlBatchTpl(){
+  const ws=XLSX.utils.aoa_to_sheet([
+    ['Mã Bravo *','Tên sản phẩm *','Số lượng *','Đơn vị','Loại bao bì','Kho','Khổ (a5/sq)','Khách hàng','Người nhập','Ghi chú'],
+    ['BRV-1001','Vít M6x20mm Inox 304',100,'Cái','Pallet','GSQV','a5','Nội bộ','Nguyễn Văn A',''],
+    ['BRV-2002','Ốc Vặn M8 Mạ Kẽm',200,'Cái','Thùng/Box','GSQV','sq','Nội bộ','Nguyễn Văn B',''],
+  ]);
+  ws['!cols']=[{wch:14},{wch:28},{wch:12},{wch:10},{wch:14},{wch:12},{wch:12},{wch:18},{wch:16},{wch:14}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'DS_Tem');XLSX.writeFile(wb,'mau_tao_nhieu_tem.xlsx');
+}
+// Import Excel vào bảng tạo nhiều tem
+function importBatchXL(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'binary'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(!rows.length){alert('File trống!');return;}
+      const tbody=document.getElementById('batch-tbody');tbody.innerHTML='';
+      let added=0;
+      for(let i=1;i<rows.length;i++){
+        const r=rows[i];
+        const bv=String(r[0]||'').trim(),nv=String(r[1]||'').trim(),qv=String(r[2]||'').trim();
+        if(!bv&&!nv&&!qv)continue;
+        addBatchRow();
+        const tr=tbody.lastElementChild;if(!tr)continue;
+        const bi=tr.querySelector('.br-bravo');if(bi)bi.value=bv;
+        const ni=tr.querySelector('.br-name');if(ni)ni.value=nv;
+        const qi=tr.querySelector('.br-qty');if(qi)qi.value=qv;
+        // ĐVT: ưu tiên từ Excel, nếu không có → tra danh mục
+        const us=tr.querySelector('.br-unit');
+        if(us){const eu=String(r[3]||'').trim();if(eu)us.value=eu;else{const cat=DB.gC().find(c=>c.bravoCode===bv||(nv&&c.productName===nv));if(cat)us.value=cat.unit;}}
+        const pk=tr.querySelector('.br-pack');if(pk&&r[4])pk.value=String(r[4]).trim();
+        const wh=tr.querySelector('.br-wh');if(wh&&r[5])wh.value=String(r[5]).trim();
+        const ps=tr.querySelector('.br-ps');if(ps&&r[6]){const sv=String(r[6]).trim().toLowerCase();if(sv==='a5'||sv==='sq')ps.value=sv;}
+        const cu=tr.querySelector('.br-cust');if(cu)cu.value=String(r[7]||'').trim();
+        const ib=tr.querySelector('.br-inputby');if(ib)ib.value=String(r[8]||'').trim();
+        const no=tr.querySelector('.br-note');if(no)no.value=String(r[9]||'').trim();
+        added++;
+      }
+      renumberBatch();
+      sal('batch-alert','as','✅ Import '+added+' dòng thành công. Kiểm tra rồi nhấn "Tạo tất cả".');
+    }catch(err){alert('❌ Lỗi đọc file: '+err.message);}
+  };
+  reader.readAsBinaryString(file);e.target.value='';
+}
 function dlTemplate(){
   const ws=XLSX.utils.aoa_to_sheet([['Mã Bravo','Tên vật tư / Sản phẩm','Đơn vị tính','Khách hàng'],['BRV-001','Vít M6x20mm Inox 304','Cái','Nội bộ'],['BRV-002','Keo 3M 300ml','Lít','KH ABC']]);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Danh mục');XLSX.writeFile(wb,'mau_danh_muc.xlsx');
@@ -1758,26 +1827,67 @@ function createSess(){
   openSess(s);
 }
 function renderStSess(){
-  // Always show session list, hide scan panel when rendering session list
+  // Nếu đang có phiên OPEN đang mở → khôi phục luôn, không reset về danh sách
+  const savedId=actStId||localStorage.getItem('kho_act_stid');
+  if(savedId){
+    const found=DB.gS().find(x=>x.id===savedId&&x.status==='OPEN');
+    if(found){openSess(found);return;}
+    actStId=null;try{localStorage.removeItem('kho_act_stid');}catch(e){}
+  }
+  // Hiện danh sách phiên
   document.getElementById('st-sel').classList.remove('hidden');
   document.getElementById('st-active').classList.add('hidden');
-  actStId=null;
   const S=DB.gS().slice().reverse();const el=document.getElementById('st-sessions');
-  el.innerHTML=S.length===0?'<p style="font-size:11px;color:var(--muted);">Chưa có phiên nào</p>':S.map(s=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:12px;font-weight:600;">${s.name}</div><div style="font-size:10px;color:var(--muted);">${s.createdAt} — ${s.items.length} tem</div></div><div style="display:flex;gap:4px;"><span class="badge ${s.status==='OPEN'?'gp':'gg'}">${s.status==='OPEN'?'Mở':'Xong'}</span><button class="btn btn-sm btn-o" onclick="openSess('${s.id}')">Mở</button><button class="btn btn-sm" style="background:var(--dl);color:var(--danger);border:1px solid #f5c6c6;" onclick="delSess('${s.id}')">🗑️</button></div></div></div>`).join('');
+  el.innerHTML=S.length===0?'<p style="font-size:11px;color:var(--muted);">Chưa có phiên nào</p>':S.map(s=>{
+    const badge=s.status==='OPEN'?'gp':s.status==='CLOSED'?'gg':'gg';
+    const label=s.status==='OPEN'?'Đang mở':s.status==='CLOSED'?'Đã đóng kỳ':'Xong';
+    const canOpen=s.status==='OPEN';
+    return`<div style="padding:7px 0;border-bottom:1px solid var(--border);"><div style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div style="font-size:12px;font-weight:600;">${s.name}</div>
+      <div style="font-size:10px;color:var(--muted);">${s.createdAt} — ${s.items.length} tem đã scan${s.closedAt?' | Đóng: '+s.closedAt:''}</div></div>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <span class="badge ${badge}">${label}</span>
+        ${canOpen?`<button class="btn btn-sm btn-o" onclick="openSess('${s.id}')">Tiếp tục</button>`:`<button class="btn btn-sm btn-o" onclick="viewSessHistory('${s.id}')">Xem</button>`}
+        <button class="btn btn-sm" style="background:var(--dl);color:var(--danger);border:1px solid #f5c6c6;" onclick="delSess('${s.id}')">🗑️</button>
+      </div></div></div>`;}).join('');
 }
-function delSess(id){if(!confirm('Xóa phiên?'))return;DB.sS(DB.gS().filter(s=>s.id!==id));renderStSess();}
+function delSess(id){
+  if(!confirm('Xóa phiên?'))return;
+  DB.sS(DB.gS().filter(s=>s.id!==id));
+  if(actStId===id){actStId=null;try{localStorage.removeItem('kho_act_stid');}catch(e){}}
+  renderStSess();
+}
 function openSess(idOrObj){
   const s=(typeof idOrObj==='object'&&idOrObj!==null)?idOrObj:DB.gS().find(x=>x.id===idOrObj);
   if(!s)return;
   actStId=s.id;
+  try{localStorage.setItem('kho_act_stid',s.id);}catch(e){}
   document.getElementById('st-sel').classList.add('hidden');
   document.getElementById('st-active').classList.remove('hidden');
   document.getElementById('st-aname').textContent='🔍 '+s.name;
-  document.getElementById('st-ameta').textContent=s.createdAt+(s.note?' — '+s.note:'');
+  document.getElementById('st-ameta').textContent=s.createdAt+(s.note?' — '+s.note:'')+'  |  '+s.items.length+' tem đã quét';
   stReset();renderStTbl();
   setTimeout(()=>{const sc=document.getElementById('st-scan');if(sc){sc.value='';sc.focus();}},150);
 }
-function closeSess(){actStId=null;document.getElementById('st-sel').classList.remove('hidden');document.getElementById('st-active').classList.add('hidden');renderStSess();}
+function closeSess(){
+  actStId=null;try{localStorage.removeItem('kho_act_stid');}catch(e){}
+  document.getElementById('st-sel').classList.remove('hidden');
+  document.getElementById('st-active').classList.add('hidden');
+  renderStSess();
+}
+// Xem lịch sử phiên đã đóng (chỉ đọc)
+function viewSessHistory(id){
+  const s=DB.gS().find(x=>x.id===id);if(!s)return;
+  actStId=id;
+  document.getElementById('st-sel').classList.add('hidden');
+  document.getElementById('st-active').classList.remove('hidden');
+  document.getElementById('st-aname').textContent='📋 '+s.name+' [Đã đóng]';
+  document.getElementById('st-ameta').textContent=s.createdAt+' — '+s.items.length+' tem'+(s.closedAt?' | Đóng kỳ: '+s.closedAt:'');
+  renderStTbl();
+  // Ẩn nút đóng kỳ khi xem lịch sử
+  const closeBtn=document.querySelector('[onclick="closePeriod()"]');
+  if(closeBtn)closeBtn.style.display='none';
+}
 let stCurLbl=null;
 const stScT={};
 function stScan1(){
@@ -1801,11 +1911,15 @@ function stReset(){
   stCurLbl=null;
   const s1=document.getElementById('st-step1'),s2=document.getElementById('st-step2');
   if(s1)s1.classList.remove('hidden');if(s2)s2.classList.add('hidden');
-  const sc=document.getElementById('st-scan');if(sc){sc.value='';sc.focus();}
   hal('st-alert');
+  setTimeout(()=>{const sc=document.getElementById('st-scan');if(sc){sc.value='';sc.focus();}},30);
 }
-function stAutoTrig(el){clearTimeout(stScT['lbl']);stScT['lbl']=setTimeout(()=>{if(el.value.trim().length>=4)stScan1();},220);}
-function stLocAutoTrig(el){clearTimeout(stScT['loc']);stScT['loc']=setTimeout(()=>{if(el.value.trim().length>=2)stConfirm();},200);}
+function stAutoTrig(el){clearTimeout(stScT['lbl']);stScT['lbl']=setTimeout(()=>{if(el.value.trim().length>=4)stScan1();},180);}
+function stLocAutoTrig(el){
+  clearTimeout(stScT['loc']);
+  if(el.value.length===9){stScT['loc']=setTimeout(stConfirm,100);return;}
+  // Khác 9 ký tự: không tự lưu — dùng Enter hoặc nút xác nhận
+}
 function stConfirm(){
   if(!stCurLbl)return;const loc=gv('st-loc').trim();if(!loc)return;
   const S=DB.gS();const si=S.findIndex(x=>x.id===actStId);if(si<0)return;
@@ -1818,8 +1932,18 @@ function stConfirm(){
   const ei=S[si].items.findIndex(i=>i.labelId===stCurLbl.id);
   if(ei>=0)S[si].items[ei]=item;else S[si].items.push(item);
   DB.sS(S);
-  sal('st-alert','as','✅ '+stCurLbl.bravoCode+' → <span class="loc-b">📍 '+loc+'</span> | '+stCurLbl.remaining+' '+stCurLbl.unit);
-  renderStTbl();setTimeout(stReset,700);
+  // Cập nhật meta header số tem đã quét
+  const sess=S[si];
+  const metaEl=document.getElementById('st-ameta');
+  if(metaEl)metaEl.textContent=sess.createdAt+(sess.note?' — '+sess.note:'')+'  |  '+sess.items.length+' tem đã quét';
+  sal('st-alert','as','✅ #'+sess.items.length+' | '+stCurLbl.bravoCode+' → <span class="loc-b">📍 '+loc+'</span> | '+stCurLbl.remaining+' '+stCurLbl.unit);
+  renderStTbl();
+  // Tự reset ngay về màn hình quét tem tiếp
+  setTimeout(()=>{
+    stReset();
+    // Focus lại ô quét tem để quét liên tục
+    setTimeout(()=>{const sc=document.getElementById('st-scan');if(sc){sc.value='';sc.focus();}},50);
+  },600);
 }
 function editStItem(labelId){
   const S=DB.gS();const s=S.find(x=>x.id===actStId);if(!s)return;
@@ -1993,9 +2117,9 @@ function addBatchRow(){
   const pkOpts=PK_OPTS.map(p=>`<option>${p}</option>`).join('');
   const tr=document.createElement('tr');tr.id=rowId;
   tr.innerHTML=`<td style="color:var(--muted);font-size:11px;">${tbody.children.length+1}</td>
-    <td><div class="acw"><input type="text" class="br-bravo" placeholder="BRV-..." oninput="batchAC(this,'bravo')" onblur="setTimeout(()=>this.nextElementSibling.classList.add('hidden'),180)" autocomplete="off" style="min-width:130px;">
+    <td><div class="acw"><input type="text" class="br-bravo" placeholder="BRV-..." oninput="batchAC(this,'bravo')" onblur="setTimeout(()=>{this.nextElementSibling.classList.add('hidden');batchAutoUnit(this,'bravo');},200)" autocomplete="off" style="min-width:130px;">
     <div class="acl hidden"></div></div></td>
-    <td><div class="acw"><input type="text" class="br-name" placeholder="Tên SP..." oninput="batchAC(this,'name')" onblur="setTimeout(()=>this.nextElementSibling.classList.add('hidden'),180)" autocomplete="off" style="min-width:160px;">
+    <td><div class="acw"><input type="text" class="br-name" placeholder="Tên SP..." oninput="batchAC(this,'name')" onblur="setTimeout(()=>{this.nextElementSibling.classList.add('hidden');batchAutoUnit(this,'name');},200)" autocomplete="off" style="min-width:160px;">
     <div class="acl hidden"></div></div></td>
     <td><input type="number" class="br-qty" placeholder="SL" min="1" style="width:60px;"></td>
     <td><select class="br-unit" style="width:70px;">${unOpts}</select></td>
@@ -2027,6 +2151,19 @@ function selBatchRow(el,code,name,unit,customer){
   const unitSel=tr.querySelector('.br-unit');if(unitSel)unitSel.value=unit;
   const custInp=tr.querySelector('.br-cust');if(custInp&&customer)custInp.value=customer;
   tr.querySelectorAll('.acl').forEach(a=>a.classList.add('hidden'));
+}
+// Tự điền ĐVT trong hàng batch khi gõ tay (không chọn từ gợi ý)
+function batchAutoUnit(inp,mode){
+  const tr=inp.closest('tr');if(!tr)return;
+  const C=DB.gC();let cat=null;
+  const v=inp.value.trim();if(!v)return;
+  if(mode==='bravo'){cat=C.find(c=>c.bravoCode===v)||C.find(c=>c.bravoCode.toLowerCase()===v.toLowerCase());}
+  else{cat=C.find(c=>c.productName===v)||C.find(c=>c.productName.toLowerCase()===v.toLowerCase());}
+  if(!cat)return;
+  const us=tr.querySelector('.br-unit');if(us)us.value=cat.unit;
+  if(mode==='bravo'){const ni=tr.querySelector('.br-name');if(ni&&!ni.value.trim())ni.value=cat.productName;}
+  else{const bi=tr.querySelector('.br-bravo');if(bi&&!bi.value.trim())bi.value=cat.bravoCode;}
+  const ci=tr.querySelector('.br-cust');if(ci&&!ci.value.trim()&&cat.customer)ci.value=cat.customer;
 }
 let batchGenerated=[];
 function genBatch(){
@@ -2521,9 +2658,8 @@ function exportStReport() {
 
 //--- SYSTEM BOOT INIT ON LOAD ---
 window.onload=()=>{
-  updateStorageSize();
-  renderTodayLabels();
-  // Đảm bảo mở trang tổng quan khi load hệ thống
+  checkStorageSize();
+  renderTodayLbls();
   gp('dashboard');
 };
 </script>
