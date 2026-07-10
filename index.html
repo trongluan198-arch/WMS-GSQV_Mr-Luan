@@ -49,6 +49,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .sv{font-size:22px;font-weight:700;margin-top:2px;}
 .ss{font-size:10px;color:var(--muted);}
 .tw{overflow-x:auto;}
+#page-history .tw,#page-catalog .tw{overflow-y:auto;max-height:calc(100vh - 235px);}
+#page-history .tw table thead tr th,#page-catalog .tw table thead tr th,#page-stocktake .tw table thead tr th{position:sticky;top:0;background:var(--card);z-index:5;box-shadow:0 1px 0 var(--border);}
+.col-resizable th{box-sizing:border-box;}
+.col-resizer{position:absolute;right:0;top:0;width:6px;height:100%;cursor:col-resize;user-select:none;z-index:20;touch-action:none;}
+.col-resizer:hover,.col-resizer.resizing{background:rgba(37,99,235,.35);}
 #inv-tbl thead tr th{position:sticky;top:0;background:var(--card);z-index:5;box-shadow:0 1px 0 var(--border);}
 #inv-summary-wrap .tw table thead tr th{position:sticky;top:0;background:var(--card);z-index:5;box-shadow:0 1px 0 var(--border);}
 #page-inventory{}
@@ -264,6 +269,25 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
           </div>
         </div>
       </div>
+    </div>
+    <!-- Rack Map -->
+    <div class="card" style="margin-top:13px;">
+      <div class="ch">
+        <span class="ct">🗺️ Sơ đồ vị trí kho (Rack Map)</span>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <select id="rackmap-day" onchange="renderRackMap()" style="width:120px;font-size:11px;padding:5px 8px;"><option value="">Tất cả dãy</option></select>
+          <button class="btn btn-sm btn-o" onclick="gp('settings');setTimeout(()=>{const e=document.getElementById('rack-import-card');if(e)e.scrollIntoView({behavior:'smooth',block:'start'});},60);">⚙️ Cập nhật sơ đồ</button>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px;">Mỗi ô nhỏ = 1 vị trí (rack-ô-tầng), sức chứa <strong>2 pallet/ô</strong>. Di chuột vào ô để xem chi tiết hàng đang chứa.</p>
+      <div id="rackmap-kpi" class="sg" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px;"></div>
+      <div style="display:flex;gap:12px;font-size:10px;margin-bottom:9px;flex-wrap:wrap;align-items:center;">
+        <span style="display:flex;align-items:center;gap:3px;"><span style="width:14px;height:12px;background:#f1f3f5;border:1px dashed #ced4da;border-radius:2px;display:inline-block;"></span> Trống</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="width:14px;height:12px;background:#c3f0ca;border:1px solid #94d3a2;border-radius:2px;display:inline-block;"></span> Còn 1 chỗ (1/2)</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="width:14px;height:12px;background:#37b24d;border-radius:2px;display:inline-block;"></span> Đầy (2/2)</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="width:14px;height:12px;background:#e03131;border-radius:2px;display:inline-block;"></span> Quá tải (&gt;2)</span>
+      </div>
+      <div id="rackmap-grid" style="display:flex;flex-wrap:wrap;gap:10px;max-height:540px;overflow-y:auto;padding:2px;border:1px solid var(--border);border-radius:8px;background:#fafbfc;"></div>
     </div>
   </div>
   <!-- Modal: Capacity settings -->
@@ -521,17 +545,29 @@ Vít M6x20mm" style="height:60px;background:#fff;"></textarea>
           <button id="inv-view-detail" onclick="setInvView(&#39;detail&#39;)" style="padding:5px 12px;font-size:11px;font-weight:600;background:var(--primary);color:#fff;border:none;cursor:pointer;">📋 Tồn chi tiết</button>
           <button id="inv-view-summary" onclick="setInvView(&#39;summary&#39;)" style="padding:5px 12px;font-size:11px;font-weight:600;background:#fff;color:var(--muted);border:none;cursor:pointer;">📊 Tồn tổng</button>
         </div>
+        <button class="btn btn-sm btn-o" title="Đưa độ rộng các cột về mặc định" onclick="resetColWidths(curInvView==='summary'?'inv-sum-tbl':'inv-tbl')">↺ Reset cột</button>
       </div>
       </div><!-- /inv-sticky-top (khu tìm kiếm/lọc — luôn hiển thị, KHÔNG cuộn) -->
+      <div id="inv-total-bar" class="hidden" style="display:flex;gap:10px;flex-wrap:wrap;background:var(--pl);border:1px solid #b3cff7;border-radius:8px;padding:8px 12px;margin-bottom:9px;font-size:12px;">
+        <span>📦 <strong id="it-cnt">0</strong> tem</span>
+        <span style="color:var(--border);">|</span>
+        <span>Tổng nhập: <strong id="it-qty">0</strong></span>
+        <span style="color:var(--border);">|</span>
+        <span>Tổng xuất: <strong id="it-issued" style="color:var(--danger);">0</strong></span>
+        <span style="color:var(--border);">|</span>
+        <span>Tổng tồn: <strong id="it-remaining" style="color:var(--success);">0</strong></span>
+        <span style="color:var(--border);">|</span>
+        <span>Số mã Bravo: <strong id="it-sku">0</strong></span>
+      </div>
       <!-- SUMMARY VIEW (tồn theo mã Bravo) — bảng có khung cuộn RIÊNG, chỉ các dòng dữ liệu cuộn bên trong -->
       <div id="inv-summary-wrap" class="hidden">
-        <div class="tw" id="inv-summary-scroll" style="overflow-y:auto;"><table>
+        <div class="tw" id="inv-summary-scroll" style="overflow-y:auto;"><table class="col-resizable" id="inv-sum-tbl">
           <thead><tr><th onclick="srtSum(&#39;bravoCode&#39;)">Mã Bravo</th><th onclick="srtSum(&#39;productName&#39;)">Tên sản phẩm</th><th onclick="srtSum(&#39;unit&#39;)">ĐVT</th><th onclick="srtSum(&#39;totalQty&#39;)">Tổng nhập</th><th onclick="srtSum(&#39;totalIssued&#39;)">Tổng xuất</th><th onclick="srtSum(&#39;totalRemaining&#39;)">Tổng tồn</th><th onclick="srtSum(&#39;temCount&#39;)">Số tem</th><th>Vị trí</th></tr></thead>
           <tbody id="inv-sum-tbody"></tbody>
         </table></div>
         <div id="inv-sum-empty" class="empty hidden"><div class="ei">📊</div><p>Chưa có dữ liệu</p></div>
       </div>
-      <div class="inv-table-wrap" id="inv-table-wrap" style="overflow-y:auto;"><table id="inv-tbl">
+      <div class="inv-table-wrap" id="inv-table-wrap" style="overflow-y:auto;"><table id="inv-tbl" class="col-resizable">
         <thead><tr>
           <th onclick="srtInv(&#39;id&#39;)">Mã tem</th><th onclick="srtInv(&#39;bravoCode&#39;)">Mã Bravo</th><th onclick="srtInv(&#39;productName&#39;)">Tên SP</th>
           <th onclick="srtInv(&#39;warehouse&#39;)">Kho</th><th onclick="srtInv(&#39;receivedDate&#39;)">Ngày nhập</th><th onclick="srtInv(&#39;ageDays&#39;)">Ngày tồn</th>
@@ -808,6 +844,22 @@ Vít M6x20mm" style="height:60px;background:#fff;"></textarea>
         </div>
       </div>
     </div>
+    <div class="card" id="rack-import-card" style="margin-top:15px;">
+      <div class="ch"><span class="ct">🗺️ Sơ đồ vị trí kho (Rack Layout)</span></div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+        Dữ liệu hiện tại: <strong id="rack-cur-summary">—</strong>. Để cập nhật (khi thêm/bớt giá kệ, đổi số tầng/số ô), dán trực tiếp dữ liệu từ file Excel vị trí giá kệ vào ô bên dưới — đúng thứ tự 6 cột: <em>Khu vực, Dãy, Giá, Số Tầng, Số Khoang, Tầng</em> (mỗi dòng là 1 tầng của 1 giá kệ, giống hệt cấu trúc file Excel gốc). Sức chứa mặc định <strong>2 pallet/ô</strong> áp dụng cho toàn bộ sơ đồ.
+      </p>
+      <textarea id="rack-import-input" placeholder="Dán dữ liệu (copy trực tiếp từ Excel, phân cách bằng Tab hoặc dấu phẩy) — VD:
+Thành phẩm 1B	A	A03	5	12	1
+Thành phẩm 1B	A	A03	5	12	2
+Thành phẩm 1B	A	A03	5	12	3" style="width:100%;height:110px;font-family:monospace;font-size:11px;border:1px solid var(--border);border-radius:6px;padding:8px;resize:vertical;"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        <button class="btn btn-p" onclick="importRackLayout()">📥 Nhập / Cập nhật sơ đồ</button>
+        <button class="btn btn-o" onclick="exportRackLayoutCSV()">⬇️ Xuất sơ đồ hiện tại (CSV)</button>
+        <button class="btn btn-o" onclick="resetRackLayoutDefault()">↺ Khôi phục mặc định (file gốc)</button>
+      </div>
+      <div id="rack-import-alert" class="alert hidden" style="margin-top:8px;"></div>
+    </div>
   </div>
 
   </div>
@@ -898,7 +950,7 @@ Vít M6x20mm" style="height:60px;background:#fff;"></textarea>
 // ===== FIREBASE SYNC - CHỐNG MẤT DỮ LIỆU =====
 let fbDb=null,fbOn=false,fbSyncStarted=false;
 const FBK='kho_fb_cfg';
-const KS={L:'kho_labels',T:'kho_txns',C:'kho_catalog',S:'kho_stocktakes',A:'kho_archives',DS:'kho_stocktake_deleted'};
+const KS={L:'kho_labels',T:'kho_txns',C:'kho_catalog',S:'kho_stocktakes',A:'kho_archives',DS:'kho_stocktake_deleted',RACK:'kho_rack_layout'};
 const LS={g:(k)=>{try{return JSON.parse(localStorage.getItem(k)||'[]');}catch{return[];}},s:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
 
 // fw: chỉ ghi lên Firebase, KHÔNG ghi local (tránh vòng lặp)
@@ -916,13 +968,20 @@ const DB={
   // phiên đã xóa sẽ KHÔNG BAO GIỜ hiện lại ở bất kỳ đâu trong ứng dụng (danh sách phiên, mở phiên, v.v.)
   gS:()=>{
     const delIds=new Set(LS.g(KS.DS).map(d=>d.id));
-    return LS.g(KS.S).filter(s=>s&&!delIds.has(s.id));
+    // Chuẩn hóa: LUÔN đảm bảo mỗi phiên có mảng items hợp lệ — nếu có bản ghi cũ/lỗi bị thiếu items,
+    // toàn bộ màn hình Kiểm kê (danh sách phiên, mở phiên, xem lịch sử...) sẽ bị "đơ" vì lỗi JS ngay
+    // giữa chừng lúc build giao diện. Chặn triệt để lỗi này tại đây — 1 nơi duy nhất.
+    return LS.g(KS.S).filter(s=>s&&!delIds.has(s.id)).map(s=>{if(!Array.isArray(s.items))s.items=[];return s;});
   },
   sS:(d)=>{const ts=Date.now();(d||[]).forEach(s=>{s.updatedAt=ts;});LS.s(KS.S,d);fw('stocktakes',d);},
   gDelS:()=>LS.g(KS.DS),
   sDelS:(d)=>{LS.s(KS.DS,d);fw('stocktake_deleted',d);},
   gA:()=>LS.g(KS.A),
   sA:(d)=>{LS.s(KS.A,d);fw('archives',d);},
+  // Sơ đồ vị trí giá kệ (rack-ô-tầng) — dùng cho bản đồ tồn kho trực quan ở Tổng quan.
+  // Dạng lưu gọn: [ [mãGiá, khuVực, dãy, [[tầng,sốÔ],...]], ... ]
+  gRack:()=>{try{return JSON.parse(localStorage.getItem(KS.RACK)||'[]');}catch{return[];}},
+  sRack:(d)=>{localStorage.setItem(KS.RACK,JSON.stringify(d));fw('rack_layout',d);},
 };
 
 // GỘP DỮ LIỆU PHIÊN KIỂM KÊ GIỮA CÁC MÁY — đây là điểm mấu chốt để dùng được nhiều máy tính
@@ -1000,6 +1059,7 @@ function startSync(){
     const fbStocktakes=fbData.stocktakes;
     const fbStDeleted=fbData.stocktake_deleted;
     const fbArchives=fbData.archives;
+    const fbRack=fbData.rack_layout;
     
     // Kiểm tra xem Firebase có dữ liệu thật không (>5 items = dữ liệu thực, không phải demo)
     const fbHasRealData=(Array.isArray(fbLabels)&&fbLabels.length>0);
@@ -1025,6 +1085,8 @@ function startSync(){
       LS.s(KS.S,mergedSt);
       fw('stocktakes',mergedSt);
       if(Array.isArray(fbArchives))LS.s(KS.A,fbArchives);
+      if(Array.isArray(fbRack)&&fbRack.length)LS.s(KS.RACK,fbRack);
+      else if(DB.gRack().length)fw('rack_layout',DB.gRack());
       // Render lại trang hiện tại
       refreshCurrentPage();
     } else {
@@ -1038,6 +1100,7 @@ function startSync(){
         fw('stocktake_deleted',DB.gDelS());
         fw('archives',DB.gA());
       }
+      if(DB.gRack().length)fw('rack_layout',DB.gRack());
     }
     
     // Sau khi xử lý lần đầu, bắt đầu lắng nghe thay đổi realtime
@@ -1154,6 +1217,115 @@ function attachRealtimeListeners(){
     if(localStr===fbStr)return;
     LS.s(KS.A,d);
   });
+
+  fbDb.ref('kho/rack_layout').on('value',(s)=>{
+    const d=s.val();
+    if(!d||!Array.isArray(d)||!d.length)return;
+    const localStr=localStorage.getItem(KS.RACK);
+    const fbStr=JSON.stringify(d);
+    if(localStr===fbStr)return;
+    localStorage.setItem(KS.RACK,fbStr);
+    if(curPage==='dashboard')renderRackMap();
+  });
+}
+
+// ===== CỘT CO GIÃN (resizable columns) =====
+// Thêm 1 tay kéo mảnh ở mép phải mỗi cột tiêu đề — kéo để thu hẹp/mở rộng cột theo ý muốn.
+// Độ rộng được LƯU LẠI theo từng bảng (localStorage) nên lần sau mở lại vẫn giữ nguyên tùy chỉnh.
+function initColResize(tableId){
+  const table=document.getElementById(tableId);
+  if(!table)return;
+  const ths=[...table.querySelectorAll('thead th')];
+  if(!ths.length)return;
+  // Nạp độ rộng đã lưu (nếu có) trước
+  let saved={};
+  try{saved=JSON.parse(localStorage.getItem('colw_'+tableId)||'{}');}catch(e){saved={};}
+  ths.forEach((th,i)=>{
+    if(saved[i]){th.style.width=saved[i];th.style.minWidth=saved[i];th.style.maxWidth=saved[i];}
+    if(th.querySelector('.col-resizer'))return; // đã gắn tay kéo rồi, không gắn lại
+    const resizer=document.createElement('span');
+    resizer.className='col-resizer';
+    resizer.title='Kéo để thay đổi độ rộng cột';
+    resizer.addEventListener('click',(e)=>e.stopPropagation());
+    resizer.addEventListener('mousedown',(e)=>{
+      e.preventDefault();e.stopPropagation();
+      const startX=e.pageX,startWidth=th.offsetWidth;
+      resizer.classList.add('resizing');document.body.style.cursor='col-resize';
+      function onMove(ev){
+        const w=Math.max(36,startWidth+(ev.pageX-startX));
+        th.style.width=w+'px';th.style.minWidth=w+'px';th.style.maxWidth=w+'px';
+      }
+      function onUp(){
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        resizer.classList.remove('resizing');document.body.style.cursor='';
+        saveColWidths(tableId);
+      }
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    });
+    th.appendChild(resizer);
+  });
+}
+function saveColWidths(tableId){
+  const table=document.getElementById(tableId);if(!table)return;
+  const ths=[...table.querySelectorAll('thead th')];
+  const widths={};ths.forEach((th,i)=>{if(th.style.width)widths[i]=th.style.width;});
+  try{localStorage.setItem('colw_'+tableId,JSON.stringify(widths));}catch(e){}
+}
+function resetColWidths(tableId){
+  const table=document.getElementById(tableId);if(!table)return;
+  table.querySelectorAll('thead th').forEach(th=>{th.style.width='';th.style.minWidth='';th.style.maxWidth='';});
+  try{localStorage.removeItem('colw_'+tableId);}catch(e){}
+}
+
+// ===== SƠ ĐỒ VỊ TRÍ KHO: nhập / xuất / khôi phục mặc định =====
+function updateRackSummary(){
+  const el=document.getElementById('rack-cur-summary');if(!el)return;
+  const layout=DB.gRack();
+  let totalLoc=0;layout.forEach(([r,z,d,floors])=>(floors||[]).forEach(([t,k])=>totalLoc+=k));
+  el.textContent=layout.length+' giá kệ, '+totalLoc.toLocaleString('vi-VN')+' vị trí (ô), '+(totalLoc*PALLET_PER_BAY).toLocaleString('vi-VN')+' pallet sức chứa';
+}
+function importRackLayout(){
+  const raw=gv('rack-import-input').trim();
+  if(!raw){sal('rack-import-alert','aw','⚠️ Chưa dán dữ liệu!');return;}
+  const lines=raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  const map={};
+  let errCount=0;
+  lines.forEach(line=>{
+    if(/^khu vực|^zone/i.test(line))return; // bỏ qua dòng tiêu đề nếu lỡ dán cả header
+    const parts=line.split(/\t|,/).map(p=>p.trim()).filter(p=>p!=='');
+    if(parts.length<6){errCount++;return;}
+    const [zone,day,rack,soTang,soKhoang,tang]=parts;
+    const khoang=parseInt(soKhoang),t=parseInt(tang);
+    if(!rack||isNaN(khoang)||isNaN(t)){errCount++;return;}
+    if(!map[rack])map[rack]={zone,day,floors:[]};
+    map[rack].floors.push([t,khoang]);
+  });
+  const newLayout=Object.entries(map).map(([rack,v])=>[rack,v.zone,v.day,v.floors.sort((a,b)=>a[0]-b[0])]);
+  if(!newLayout.length){sal('rack-import-alert','ad','❌ Không đọc được dòng dữ liệu hợp lệ nào. Kiểm tra lại: mỗi dòng cần đủ 6 cột (Khu vực, Dãy, Giá, Số Tầng, Số Khoang, Tầng), phân cách bằng Tab hoặc dấu phẩy.');return;}
+  if(!confirm('Sẽ THAY THẾ sơ đồ vị trí hiện tại bằng '+newLayout.length+' giá kệ mới đọc được. Tiếp tục?'))return;
+  DB.sRack(newLayout);
+  updateRackSummary();
+  sal('rack-import-alert','as','✅ Đã cập nhật sơ đồ: '+newLayout.length+' giá kệ'+(errCount?' (bỏ qua '+errCount+' dòng không đúng định dạng)':'')+'.');
+  document.getElementById('rack-import-input').value='';
+  if(curPage==='dashboard')renderRackMap();
+}
+function exportRackLayoutCSV(){
+  const layout=DB.gRack();
+  const rows=[['Khu vực','Dãy','Giá','Số Tầng','Số Khoang','Tầng']];
+  layout.forEach(([rack,zone,day,floors])=>{
+    const soTang=(floors||[]).length;
+    (floors||[]).forEach(([t,k])=>rows.push([zone,day,rack,soTang,k,t]));
+  });
+  dlCSV(rows,'so_do_vi_tri_kho_'+today()+'.csv');
+}
+function resetRackLayoutDefault(){
+  if(!confirm('Khôi phục sơ đồ vị trí về mặc định (theo file Excel gốc bạn đã cung cấp ban đầu)? Các chỉnh sửa hiện tại sẽ bị mất.'))return;
+  DB.sRack(DEFAULT_RACK_LAYOUT);
+  updateRackSummary();
+  sal('rack-import-alert','as','✅ Đã khôi phục sơ đồ mặc định.');
+  if(curPage==='dashboard')renderRackMap();
 }
 
 function refreshCurrentPage(){
@@ -1181,6 +1353,12 @@ function autoFb(){
     initFbApp(c);
   }catch(e){}
 }
+
+// Sơ đồ vị trí giá kệ mặc định (nạp từ file Book1.xlsx do người dùng cung cấp — khu Thành phẩm 1B, dãy A03-A18 & B01-B17).
+// Có thể cập nhật lại bất cứ lúc nào ở Cài đặt & Sync → "Sơ đồ vị trí kho".
+// Lưu ý: dòng B01 tầng "7" là giữ nguyên theo dữ liệu gốc (nghi ngờ lỗi nhập liệu, có thể sửa lại khi cập nhật).
+const DEFAULT_RACK_LAYOUT=[["A03","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12],[5,12]]],["A04","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12],[5,12]]],["A05","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12]]],["A06","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12]]],["A07","Thành phẩm 1B","A",[[1,12],[2,12],[3,12]]],["A08","Thành phẩm 1B","A",[[1,12],[2,12],[3,12]]],["A09","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12]]],["A10","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12]]],["A11","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12]]],["A12","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12]]],["A13","Thành phẩm 1B","A",[[1,12],[2,12],[3,12]]],["A14","Thành phẩm 1B","A",[[1,12],[2,12],[3,12]]],["A15","Thành phẩm 1B","A",[[1,12],[2,12],[3,12]]],["A16","Thành phẩm 1B","A",[[1,12],[2,12],[3,12]]],["A17","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12]]],["A18","Thành phẩm 1B","A",[[1,12],[2,12],[3,12],[4,12]]],["B01","Thành phẩm 1B","B",[[2,9],[3,9],[4,9],[7,9]]],["B02","Thành phẩm 1B","B",[[1,9],[2,9],[3,9],[4,9]]],["B03","Thành phẩm 1B","B",[[1,9],[2,9],[3,9],[4,9]]],["B04","Thành phẩm 1B","B",[[1,9],[2,9],[3,9],[4,9]]],["B05","Thành phẩm 1B","B",[[1,9],[2,9],[3,9],[4,9]]],["B06","Thành phẩm 1B","B",[[1,9],[2,9],[3,9]]],["B07","Thành phẩm 1B","B",[[1,9],[2,9],[3,9]]],["B08","Thành phẩm 1B","B",[[1,9],[2,9],[3,9]]],["B09","Thành phẩm 1B","B",[[1,9],[2,9],[3,9],[4,9]]],["B10","Thành phẩm 1B","B",[[1,9],[2,9],[3,9],[4,9]]],["B11","Thành phẩm 1B","B",[[1,9],[2,9],[3,9],[4,9]]],["B12","Thành phẩm 1B","B",[[1,9],[2,9],[3,9],[4,9]]],["B13","Thành phẩm 1B","B",[[1,9],[2,9],[3,9]]],["B14","Thành phẩm 1B","B",[[1,9],[2,9],[3,9]]],["B15","Thành phẩm 1B","B",[[1,9],[2,9],[3,9]]],["B16","Thành phẩm 1B","B",[[1,9],[2,9],[3,9]]],["B17","Thành phẩm 1B","B",[[1,9],[2,9],[3,9]]]];
+const PALLET_PER_BAY=2; // sức chứa mỗi ô (theo yêu cầu: mỗi ô để được 2 pallet)
 
 // ===== UTILS =====
 function genId(){return'TEM-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).substr(2,4).toUpperCase();}
@@ -1223,18 +1401,23 @@ function gp(p){
   else if(p==='receive'){renderRecvToday();resetRecv();}
   else if(p==='move')renderMvHist();
   else if(p==='issue'){renderIsToday();resetIs();}
-  else if(p==='inventory'){renderInv();setTimeout(setInvStickyOffset,30);}
+  else if(p==='inventory'){renderInv();initColResize('inv-tbl');initColResize('inv-sum-tbl');setTimeout(setInvStickyOffset,30);}
   else if(p==='history')renderHist();
   else if(p==='catalog')renderCat();
   else if(p==='stocktake')renderStSess();
+  else if(p==='settings')updateRackSummary();
 }
 // Đo khoảng trống còn lại của màn hình để khung DANH SÁCH (bảng) tự cuộn RIÊNG bên trong,
 // còn khu tìm kiếm/lọc và dòng tiêu đề bảng luôn đứng yên, không bị đè/che khi lăn chuột.
 function setInvStickyOffset(){
   const top=document.getElementById('inv-sticky-top');
   if(!top)return;
-  const rect=top.getBoundingClientRect();
-  const avail=Math.max(240,Math.round(window.innerHeight-rect.bottom-24));
+  let bottom=top.getBoundingClientRect().bottom;
+  const totalBar=document.getElementById('inv-total-bar');
+  if(totalBar&&!totalBar.classList.contains('hidden')){
+    bottom=Math.max(bottom,totalBar.getBoundingClientRect().bottom);
+  }
+  const avail=Math.max(240,Math.round(window.innerHeight-bottom-24));
   const wrap=document.getElementById('inv-table-wrap');if(wrap)wrap.style.maxHeight=avail+'px';
   const sumWrap=document.getElementById('inv-summary-scroll');if(sumWrap)sumWrap.style.maxHeight=avail+'px';
 }
@@ -1326,6 +1509,82 @@ function renderDash(){
       <span style="font-size:10px;color:var(--muted);">${t.qty} ${t.unit||''}</span>
     </div>`).join('');
   renderTrendChart();
+  renderRackMap();
+}
+
+// ===== RACK MAP (sơ đồ vị trí kho) =====
+function rackLocCode(rack,bay,tang){return rack+'-'+String(bay).padStart(2,'0')+'-T'+tang;}
+// Gộp tồn kho hiện tại theo đúng chuỗi vị trí (không phân biệt hoa/thường, khoảng trắng thừa)
+function computeRackOccupancy(){
+  const map={};
+  DB.gL().filter(l=>l.status==='ACTIVE'&&l.remaining>0&&l.location).forEach(l=>{
+    const loc=l.location.trim().toUpperCase();
+    if(!map[loc])map[loc]=[];
+    map[loc].push(l);
+  });
+  return map;
+}
+function renderRackMap(){
+  const gridEl=document.getElementById('rackmap-grid');
+  if(!gridEl)return; // chưa ở trang Tổng quan
+  let layout=DB.gRack();
+  if(!layout||!layout.length){layout=DEFAULT_RACK_LAYOUT;DB.sRack(layout);}
+  // Nạp danh sách dãy cho bộ lọc (chỉ 1 lần, tránh mất lựa chọn đang chọn khi render lại)
+  const daySel=document.getElementById('rackmap-day');
+  if(daySel&&daySel.dataset.filled!=='1'){
+    const days=[...new Set(layout.map(r=>r[2]))].filter(Boolean).sort();
+    daySel.innerHTML='<option value="">Tất cả dãy</option>'+days.map(d=>`<option value="${d}">Dãy ${d}</option>`).join('');
+    daySel.dataset.filled='1';
+  }
+  const dayFilter=daySel?daySel.value:'';
+  const occ=computeRackOccupancy();
+  let totalLoc=0,totalCap=0,usedPallets=0,emptyLoc=0,overLoc=0;
+  const cards=[];
+  layout.forEach(([rack,zone,day,floors])=>{
+    if(dayFilter&&day!==dayFilter)return;
+    const floorsDesc=(floors||[]).slice().sort((a,b)=>b[0]-a[0]); // tầng cao vẽ ở trên, giống thực tế
+    let rackUsed=0,rackCap=0;
+    const rows=floorsDesc.map(([tang,khoang])=>{
+      const cells=[];
+      for(let bay=1;bay<=khoang;bay++){
+        const loc=rackLocCode(rack,bay,tang);
+        const items=occ[loc]||[];
+        const cnt=items.length;
+        totalLoc++;totalCap+=PALLET_PER_BAY;rackCap+=PALLET_PER_BAY;
+        const used=Math.min(cnt,PALLET_PER_BAY);
+        usedPallets+=used;rackUsed+=used;
+        let css,label;
+        if(cnt===0){css='background:#f1f3f5;border:1px dashed #ced4da;';label='Trống';emptyLoc++;}
+        else if(cnt<PALLET_PER_BAY){css='background:#c3f0ca;border:1px solid #94d3a2;';label='Còn '+(PALLET_PER_BAY-cnt)+' chỗ trống';}
+        else if(cnt===PALLET_PER_BAY){css='background:#37b24d;border:1px solid #2f9e44;';label='Đầy ('+cnt+'/'+PALLET_PER_BAY+')';}
+        else{css='background:#e03131;border:1px solid #c92a2a;';label='⚠️ QUÁ TẢI ('+cnt+' tem / '+PALLET_PER_BAY+' chỗ)';overLoc++;}
+        const detail=items.length?items.map(it=>it.bravoCode+' — '+it.productName+' (SL: '+it.remaining+' '+it.unit+(it.customer?', KH: '+it.customer:'')+')').join(' | '):'';
+        const tip=(loc+': '+label+(detail?' — '+detail:'')).replace(/"/g,'&quot;');
+        cells.push(`<div title="${tip}" style="${css}width:19px;height:15px;border-radius:2px;display:inline-block;margin:1px;cursor:default;"></div>`);
+      }
+      return `<div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:8px;color:var(--muted);width:20px;text-align:right;flex-shrink:0;">T${tang}</span>
+        <div style="line-height:0;">${cells.join('')}</div>
+      </div>`;
+    }).join('');
+    const pct=rackCap>0?Math.round(rackUsed/rackCap*100):0;
+    const pctColor=pct>=90?'var(--danger)':pct>=70?'#d97706':'var(--success)';
+    cards.push(`<div style="border:1px solid var(--border);border-radius:8px;padding:7px 8px;background:#fff;min-width:${Math.max(150,(Math.max(...floorsDesc.map(f=>f[1]),0))*21+30)}px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <strong style="font-size:12px;">${rack}</strong>
+        <span style="font-size:10px;font-weight:700;color:${pctColor};">${pct}%</span>
+      </div>
+      ${rows}
+    </div>`);
+  });
+  gridEl.innerHTML=cards.length?cards.join(''):'<p style="font-size:12px;color:var(--muted);padding:10px;">Chưa có sơ đồ vị trí kho. Vào Cài đặt & Sync để nhập sơ đồ.</p>';
+  const fillPct=totalCap>0?Math.round(usedPallets/totalCap*100):0;
+  const kpiEl=document.getElementById('rackmap-kpi');
+  if(kpiEl)kpiEl.innerHTML=`
+    <div class="sc"><div class="sl2">Tổng vị trí (ô)</div><div class="sv">${totalLoc.toLocaleString('vi-VN')}</div><div class="ss">${totalCap.toLocaleString('vi-VN')} pallet</div></div>
+    <div class="sc" style="background:#eafbf0;"><div class="sl2" style="color:#2b8a3e;">Đang dùng</div><div class="sv" style="color:#2b8a3e;">${usedPallets.toLocaleString('vi-VN')}</div><div class="ss" style="color:#2b8a3e;">${fillPct}% sức chứa</div></div>
+    <div class="sc" style="background:#f1f3f5;"><div class="sl2">Ô trống hoàn toàn</div><div class="sv">${emptyLoc.toLocaleString('vi-VN')}</div><div class="ss">có thể cất thêm</div></div>
+    <div class="sc" style="background:${overLoc>0?'var(--dl)':'#f1f3f5'};"><div class="sl2" style="color:${overLoc>0?'var(--danger)':'inherit'};">⚠️ Quá tải</div><div class="sv" style="color:${overLoc>0?'var(--danger)':'inherit'};">${overLoc}</div><div class="ss">ô vượt ${PALLET_PER_BAY} pallet</div></div>`;
 }
 
 let trendChartInstance=null;
@@ -1766,8 +2025,31 @@ function renderInv(){
   }).map(l=>({...l,ageDays:ageDays(l.stockDate||l.receivedDate)||0}));
   if(invSC)L.sort((a,b)=>{let va=a[invSC]??'',vb=b[invSC]??'';return typeof va==='number'&&typeof vb==='number'?(invSA?va-vb:vb-va):(invSA?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va)));});
   invFiltered=L;invPage=0;
+  updateInvTotalBar(L);
   renderInvPage();
   setTimeout(setInvStickyOffset,30);
+}
+// Thanh tổng số lượng — tính theo đúng tập kết quả đang lọc/tìm kiếm (trước phân trang), giúp
+// nhìn ngay tổng SL của mã đang tìm mà không cần cộng tay. Nếu kết quả gồm nhiều ĐVT khác nhau,
+// hiển thị tách riêng theo từng ĐVT để không cộng nhầm (VD: không cộng chung Cái với Kg).
+function updateInvTotalBar(L){
+  const bar=document.getElementById('inv-total-bar');
+  if(!bar)return;
+  if(!L.length){bar.classList.add('hidden');return;}
+  bar.classList.remove('hidden');
+  const byUnit={};const skuSet=new Set();
+  L.forEach(l=>{
+    skuSet.add(l.bravoCode);
+    if(!byUnit[l.unit])byUnit[l.unit]={qty:0,issued:0,remaining:0};
+    byUnit[l.unit].qty+=l.qty||0;byUnit[l.unit].issued+=l.issued||0;byUnit[l.unit].remaining+=l.remaining||0;
+  });
+  const fmtByUnit=(field)=>Object.entries(byUnit).map(([u,v])=>v[field].toLocaleString('vi-VN')+' '+u).join(', ');
+  const set=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val;};
+  set('it-cnt',L.length.toLocaleString('vi-VN'));
+  set('it-qty',fmtByUnit('qty'));
+  set('it-issued',fmtByUnit('issued'));
+  set('it-remaining',fmtByUnit('remaining'));
+  set('it-sku',skuSet.size);
 }
 
 function renderInvPage(){
@@ -2006,6 +2288,8 @@ function showDet(id){
     <div><div style="font-size:10px;color:var(--muted);">Kho</div><div><span class="kho-b">${l.warehouse||'—'}</span></div></div>
     <div><div style="font-size:10px;color:var(--muted);">Vị trí</div><div>${l.location?'<span class="loc-b">📍 '+l.location+'</span>':'—'}</div></div>
     <div><div style="font-size:10px;color:var(--muted);">Ngày tồn</div><div><span class="fifo-b">📅 ${fmtD(l.stockDate||l.receivedDate)}</span>${age!==null?' ('+age+' ngày)':''}</div></div>
+    <div><div style="font-size:10px;color:var(--muted);">Khách hàng</div><div>${l.customer||'—'}</div></div>
+    <div><div style="font-size:10px;color:var(--muted);">👤 Người tạo tem</div><div style="font-weight:600;${l.inputBy?'':'color:var(--muted);'}">${l.inputBy||'— (chưa điền)'}</div></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:11px;">
     <div class="sc"><div class="sl2">SL nhập</div><div class="sv" style="font-size:18px;">${l.qty}</div><div class="ss">${l.unit}</div></div>
@@ -2120,6 +2404,7 @@ function createSess(){
   openSess(s);
 }
 function renderStSess(){
+  try{
   // Nếu đang có phiên OPEN đang mở → khôi phục luôn, không reset về danh sách
   const savedId=actStId||localStorage.getItem('kho_act_stid');
   if(savedId){
@@ -2137,14 +2422,20 @@ function renderStSess(){
     const canOpen=s.status==='OPEN';
     return`<div style="padding:7px 0;border-bottom:1px solid var(--border);"><div style="display:flex;justify-content:space-between;align-items:center;">
       <div><div style="font-size:12px;font-weight:600;">${s.name}</div>
-      <div style="font-size:10px;color:var(--muted);">${s.createdAt} — ${s.items.length} tem đã scan${s.closedAt?' | Đóng: '+s.closedAt:''}</div></div>
+      <div style="font-size:10px;color:var(--muted);">${s.createdAt} — ${(s.items||[]).length} tem đã scan${s.closedAt?' | Đóng: '+s.closedAt:''}</div></div>
       <div style="display:flex;gap:4px;align-items:center;">
         <span class="badge ${badge}">${label}</span>
         ${canOpen?`<button class="btn btn-sm btn-o" onclick="openSess('${s.id}')">Tiếp tục</button>`:`<button class="btn btn-sm btn-o" onclick="viewSessHistory('${s.id}')">Xem</button>`}
         <button class="btn btn-sm" style="background:var(--dl);color:var(--danger);border:1px solid #f5c6c6;" onclick="delSess('${s.id}')">🗑️</button>
       </div></div></div>`;}).join('');
+  }catch(e){
+    console.error('renderStSess error:',e);
+    const el=document.getElementById('st-sessions');
+    if(el)el.innerHTML='<p style="font-size:11px;color:var(--danger);">⚠️ Có lỗi khi hiển thị danh sách phiên: '+(e.message||e)+'. Vui lòng tải lại trang (F5). Nếu vẫn lỗi, bấm nút phản hồi (👎) để báo cho nhà phát triển.</p>';
+  }
 }
 function delSess(id){
+  try{
   if(!confirm('Xóa phiên?'))return;
   DB.sS(DB.gS().filter(s=>s.id!==id));
   // Đánh dấu "đã xóa" (tombstone) và đồng bộ lên Firebase — đảm bảo phiên này KHÔNG BAO GIỜ
@@ -2153,8 +2444,10 @@ function delSess(id){
   if(!del.find(d=>d.id===id)){del.push({id,deletedAt:Date.now()});DB.sDelS(del);}
   if(actStId===id){actStId=null;try{localStorage.removeItem('kho_act_stid');}catch(e){}}
   renderStSess();
+  }catch(e){console.error('delSess error:',e);alert('⚠️ Có lỗi khi xóa phiên: '+(e.message||e));}
 }
 function openSess(idOrObj){
+  try{
   const s=(typeof idOrObj==='object'&&idOrObj!==null)?idOrObj:DB.gS().find(x=>x.id===idOrObj);
   if(!s)return;
   actStId=s.id;
@@ -2162,13 +2455,14 @@ function openSess(idOrObj){
   document.getElementById('st-sel').classList.add('hidden');
   document.getElementById('st-active').classList.remove('hidden');
   document.getElementById('st-aname').textContent='🔍 '+s.name;
-  document.getElementById('st-ameta').textContent=s.createdAt+(s.note?' — '+s.note:'')+'  |  '+s.items.length+' tem đã quét';
+  document.getElementById('st-ameta').textContent=s.createdAt+(s.note?' — '+s.note:'')+'  |  '+(s.items||[]).length+' tem đã quét';
   stReset();renderStTbl();
   const closeBtn=document.querySelector('[onclick="closePeriod()"]');
   if(closeBtn)closeBtn.style.display='';
   const syncEl=document.getElementById('st-syncinfo');
   if(syncEl){syncEl.className='alert as';syncEl.innerHTML='☁️ Mỗi tem quét xong được lưu &amp; đồng bộ ngay — có thể bấm "💾 Lưu tạm — Về danh sách phiên" bất cứ lúc nào rồi mở lại (kể cả từ máy tính khác) để quét tiếp, không mất dữ liệu.';}
   setTimeout(()=>{const sc=document.getElementById('st-scan');if(sc){sc.value='';sc.focus();}},30);
+  }catch(e){console.error('openSess error:',e);alert('⚠️ Có lỗi khi mở phiên: '+(e.message||e));renderStSess();}
 }
 function closeSess(){
   actStId=null;try{localStorage.removeItem('kho_act_stid');}catch(e){}
@@ -2178,12 +2472,13 @@ function closeSess(){
 }
 // Xem lịch sử phiên đã đóng (chỉ đọc)
 function viewSessHistory(id){
+  try{
   const s=DB.gS().find(x=>x.id===id);if(!s)return;
   actStId=id;
   document.getElementById('st-sel').classList.add('hidden');
   document.getElementById('st-active').classList.remove('hidden');
   document.getElementById('st-aname').textContent='📋 '+s.name+' [Đã đóng]';
-  document.getElementById('st-ameta').textContent=s.createdAt+' — '+s.items.length+' tem'+(s.closedAt?' | Đóng kỳ: '+s.closedAt:'');
+  document.getElementById('st-ameta').textContent=s.createdAt+' — '+(s.items||[]).length+' tem'+(s.closedAt?' | Đóng kỳ: '+s.closedAt:'');
   renderStTbl();
   // Ẩn nút đóng kỳ khi xem lịch sử
   const closeBtn=document.querySelector('[onclick="closePeriod()"]');
@@ -2191,6 +2486,7 @@ function viewSessHistory(id){
   const syncEl=document.getElementById('st-syncinfo');
   if(syncEl){syncEl.className='alert ai';syncEl.innerHTML='📋 Phiên này đã đóng kỳ — chỉ xem lại lịch sử, không thể quét thêm.';}
   if(s.archiveId)setTimeout(()=>{if(confirm('Phiên này đã đóng kỳ. Xem tồn kho tháng cũ đã lưu trữ tại thời điểm đóng kỳ?'))viewArch(s.archiveId);},100);
+  }catch(e){console.error('viewSessHistory error:',e);alert('⚠️ Có lỗi khi xem lịch sử phiên: '+(e.message||e));renderStSess();}
 }
 let stCurLbl=null;
 const stScT={};
@@ -2736,6 +3032,7 @@ function loadDemo(){
   DB.sL([{id:'TEM-DEMO001',bravoCode:'BRV-1001',productName:'Vít M6x20mm Inox 304',qty:500,unit:'Cái',pack:'Thùng',warehouse:'Vật tư',printSize:'a5',note:'',remaining:350,issued:150,location:'A-01-01',status:'ACTIVE',createdAt:'20/05/2026, 08:00',createdDate:'2026-05-20',receivedAt:'20/05/2026, 09:00',receivedDate:'2026-05-20',stockDate:'2026-05-20',updatedAt:'27/05/2026, 14:00'},{id:'TEM-DEMO002',bravoCode:'BRV-2002',productName:'Ốc Vặn M8 Mạ Kẽm',qty:1000,unit:'Cái',pack:'Thùng',warehouse:'Vật tư',printSize:'a5',note:'',remaining:20,issued:980,location:'A-01-02',status:'ACTIVE',createdAt:'15/05/2026, 09:00',createdDate:'2026-05-15',receivedAt:'15/05/2026, 10:00',receivedDate:'2026-05-15',stockDate:'2026-05-15',updatedAt:'27/05/2026, 16:00'},{id:'TEM-DEMO003',bravoCode:'BRV-1001',productName:'Vít M6x20mm Inox 304',qty:500,unit:'Cái',pack:'Thùng',warehouse:'Vật tư',printSize:'a5',note:'Lô mới',remaining:500,issued:0,location:'A-01-03',status:'ACTIVE',createdAt:'25/05/2026, 08:00',createdDate:'2026-05-25',receivedAt:'25/05/2026, 09:00',receivedDate:'2026-05-25',stockDate:'2026-05-25',updatedAt:'25/05/2026'},{id:'TEM-DEMO004',bravoCode:'BRV-3003',productName:'Keo 3M 300ml',qty:24,unit:'Lít',pack:'Thùng',warehouse:'Linh kiện',printSize:'a5',note:'',remaining:24,issued:0,location:'B-02-01',status:'ACTIVE',createdAt:'28/05/2026, 07:30',createdDate:'2026-05-28',receivedAt:'28/05/2026, 08:00',receivedDate:'2026-05-28',stockDate:'2026-05-28',updatedAt:'28/05/2026'},{id:'TEM-DEMO005',bravoCode:'BRV-4004',productName:'Dầu Castrol 5L',qty:10,unit:'Lít',pack:'Thùng',warehouse:'Phôi',printSize:'sq',note:'',remaining:10,issued:0,location:null,status:'PENDING',createdAt:'28/05/2026, 09:00',createdDate:'2026-05-28',updatedAt:'28/05/2026'}]);
   DB.sT([{id:'TXN-001',type:'NHẬP',labelId:'TEM-DEMO002',bravoCode:'BRV-2002',productName:'Ốc Vặn M8 Mạ Kẽm',unit:'Cái',qty:1000,warehouse:'Vật tư',fromLoc:null,toLoc:'A-01-02',note:'Nhập kho',datetime:'15/05/2026, 10:00',date:'2026-05-15'},{id:'TXN-002',type:'NHẬP',labelId:'TEM-DEMO001',bravoCode:'BRV-1001',productName:'Vít M6x20mm Inox 304',unit:'Cái',qty:500,warehouse:'Vật tư',fromLoc:null,toLoc:'A-01-01',note:'Nhập kho',datetime:'20/05/2026, 09:00',date:'2026-05-20'},{id:'TXN-003',type:'XUẤT',labelId:'TEM-DEMO002',bravoCode:'BRV-2002',productName:'Ốc Vặn M8 Mạ Kẽm',unit:'Cái',qty:980,warehouse:'Vật tư',fromLoc:'A-01-02',toLoc:null,note:'SX T5',datetime:'22/05/2026, 10:00',date:'2026-05-22'},{id:'TXN-004',type:'NHẬP',labelId:'TEM-DEMO003',bravoCode:'BRV-1001',productName:'Vít M6x20mm Inox 304',unit:'Cái',qty:500,warehouse:'Vật tư',fromLoc:null,toLoc:'A-01-03',note:'Nhập kho',datetime:'25/05/2026, 09:00',date:'2026-05-25'},{id:'TXN-005',type:'XUẤT',labelId:'TEM-DEMO001',bravoCode:'BRV-1001',productName:'Vít M6x20mm Inox 304',unit:'Cái',qty:150,warehouse:'Vật tư',fromLoc:'A-01-01',toLoc:null,note:'PO-2026-045',datetime:'27/05/2026, 14:00',date:'2026-05-27'}]);
 }
+if(!DB.gRack().length)DB.sRack(DEFAULT_RACK_LAYOUT);
 loadDemo();renderDash();renderTodayLbls();autoFb();setTimeout(checkStorageSize,500);
 
 //--- SYSTEM BOOT INIT ON LOAD ---
