@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="vi"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kho QR">
+<meta name="theme-color" content="#1a1d23">
+<link rel="manifest" href="manifest.json">
 <title>Quản Lý Kho QR v5.1</title>
 <!-- QRCode.js (davidshimjs) - API: new QRCode(el, options) -->
 <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
@@ -10,6 +16,8 @@
 <!-- Firebase 9 compat (App + Database) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<!-- html5-qrcode: quét QR bằng camera điện thoại -->
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--border:#e2e4e9;--primary:#1a5fb4;--pl:#e8f0fe;--success:#1e7e4e;--sl:#d6f0e2;--danger:#c0392b;--dl:#fdecea;--warning:#d97706;--wl:#fef3c7;--purple:#6d28d9;--prl:#ede9fe;--text:#1a1d23;--muted:#6b7280;--accent:#0f4c8a;--sidebar:#1a1d23;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -144,10 +152,65 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
 .fb-box label{color:#aaa;}
 @media print{body>*{display:none!important;}#print-area{display:block!important;}@page{margin:5mm;}}
 #print-area{display:none;}
+
+/* ===================== CAMERA SCAN BUTTON + MODAL ===================== */
+.cam-btn{margin-top:8px;width:100%;background:var(--primary);color:#fff;border:none;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+.cam-btn:active{background:var(--accent);}
+#cam-modal .md{width:420px;max-width:96vw;background:#000;border-radius:14px;overflow:hidden;}
+#cam-modal .mh{background:#111;padding:12px 16px;}
+#cam-modal .mh h3{color:#fff;}
+#cam-modal .xb{color:#ccc;font-size:20px;}
+#cam-reader{width:100%;background:#000;min-height:280px;}
+#cam-reader video{width:100%!important;object-fit:cover;}
+#cam-hint{color:#9ca3af;font-size:11px;text-align:center;padding:8px 12px 14px;}
+.cam-switch{margin:0 16px 14px;display:flex;gap:8px;}
+
+/* ===================== MOBILE (điện thoại) ===================== */
+.hbtn{display:none;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:4px 8px;}
+#sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;}
+#sb-overlay.show{display:block;}
+
+@media (max-width:860px){
+  body{overflow:hidden;}
+  .hbtn{display:inline-flex;align-items:center;}
+  .sidebar{position:fixed;top:0;left:0;height:100%;z-index:950;transform:translateX(-100%);transition:transform .22s ease;width:250px;}
+  .sidebar.open{transform:translateX(0);box-shadow:6px 0 24px rgba(0,0,0,.35);}
+  .main{width:100%;}
+  .topbar{padding:10px 12px;}
+  .topbar h2{font-size:13px;}
+  .content{padding:12px;-webkit-overflow-scrolling:touch;}
+  .sg{grid-template-columns:repeat(2,1fr)!important;gap:8px;}
+  .sc{padding:10px;}
+  .sv{font-size:18px;}
+  .fr2,.fr3,.fr4{grid-template-columns:1fr!important;gap:8px;}
+  .card{padding:12px;}
+  input,select,textarea{font-size:16px;padding:9px 10px;} /* 16px tránh iOS auto-zoom */
+  .btn{padding:9px 12px;font-size:13px;}
+  .scanbox{padding:14px 10px;}
+  .scanbox input{font-size:15px;}
+  .steps{flex-wrap:wrap;gap:4px;}
+  .step{font-size:10px;padding:4px 8px;}
+  .md{width:96vw!important;max-height:94vh;}
+  .md-lg{width:96vw!important;}
+  table{font-size:11px;}
+  thead th,tbody td{padding:7px 6px;white-space:nowrap;}
+  .tw{-webkit-overflow-scrolling:touch;}
+  /* Cột đầu tiên (mã tem/mã Bravo) dính lại khi cuộn ngang bảng, dễ đối chiếu trên điện thoại */
+  .tw table td:first-child,.tw table th:first-child{position:sticky;left:0;background:#fff;z-index:6;box-shadow:1px 0 0 var(--border);}
+  thead th:first-child{background:#f8f9fb;}
+  .sb-bar{flex-direction:column;}
+  .sb-bar input{min-width:0;}
+  .cam-btn{padding:12px;font-size:14px;}
+}
+@media (max-width:420px){
+  .sg{grid-template-columns:1fr 1fr!important;}
+  .topbar h2{font-size:12px;}
+}
 </style>
 </head>
 <body>
-<div class="sidebar">
+<div id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="sidebar" id="sidebar">
   <div class="sb-logo">
     <h1>📦 KHO QR v5.0</h1>
     <p>Quản lý xuất nhập tồn kho</p>
@@ -172,7 +235,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
 </div>
 
 <div class="main">
-  <div class="topbar"><h2 id="page-title">Cài đặt &amp; Sync</h2><div style="display:flex;gap:7px;" id="topbar-actions"></div></div>
+  <div class="topbar"><div style="display:flex;align-items:center;gap:4px;"><button class="hbtn" onclick="openSidebar()">☰</button><h2 id="page-title">Cài đặt &amp; Sync</h2></div><div style="display:flex;gap:7px;" id="topbar-actions"></div></div>
   <div class="content">
 
   <!-- DASHBOARD -->
@@ -402,12 +465,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
           <div class="step" id="sr3"><span class="sn">3</span>✅ Lưu</div>
         </div>
         <div id="recv-s1">
-          <div class="scanbox"><input type="text" id="recv-lbl" placeholder="📷 Scan mã tem QR..." autofocus="" oninput="autoTrig(this,&#39;recv-lbl&#39;,recvStep1,240)"><p>Súng scan tự trigger — hoặc nhập + Enter</p></div>
+          <div class="scanbox"><input type="text" id="recv-lbl" placeholder="📷 Scan mã tem QR..." autofocus="" oninput="autoTrig(this,&#39;recv-lbl&#39;,recvStep1,240)"><p>Súng scan tự trigger — hoặc nhập + Enter</p><button type="button" class="cam-btn" onclick="openCamScan(&#39;recv-lbl&#39;)">📷 Quét bằng Camera</button></div>
           <button class="btn btn-p btn-sm" onclick="recvStep1()" style="width:100%">✓ Xác nhận thủ công</button>
         </div>
         <div id="recv-s2" class="hidden">
           <div id="recv-info" class="alert ai" style="margin-bottom:9px;"></div>
-          <div class="scanbox"><input type="text" id="recv-loc" placeholder="📷 Scan vị trí kho (VD: A-01-02)..." oninput="recvLocInput(this)"><p>Đúng 9 ký tự → tự lưu | Khác → ấn Xác nhận</p></div>
+          <div class="scanbox"><input type="text" id="recv-loc" placeholder="📷 Scan vị trí kho (VD: A-01-02)..." oninput="recvLocInput(this)"><p>Đúng 9 ký tự → tự lưu | Khác → ấn Xác nhận</p><button type="button" class="cam-btn" onclick="openCamScan(&#39;recv-loc&#39;)">📷 Quét bằng Camera</button></div>
           <button class="btn btn-p btn-sm" onclick="recvStep2()" style="width:100%;margin-bottom:5px;">✓ Xác nhận nhập kho</button>
           <button class="btn btn-o btn-sm" onclick="resetRecv()">← Quay lại</button>
         </div>
@@ -442,12 +505,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
           <div class="step" id="sm3"><span class="sn">3</span>✅ Lưu</div>
         </div>
         <div id="mv-s1">
-          <div class="scanbox"><input type="text" id="mv-lbl" placeholder="📷 Scan mã tem cần di chuyển..." oninput="autoTrig(this,&#39;mv-lbl&#39;,mvStep1,240)"><p>Bắn tem QR → tự nhảy sang scan vị trí</p></div>
+          <div class="scanbox"><input type="text" id="mv-lbl" placeholder="📷 Scan mã tem cần di chuyển..." oninput="autoTrig(this,&#39;mv-lbl&#39;,mvStep1,240)"><p>Bắn tem QR → tự nhảy sang scan vị trí</p><button type="button" class="cam-btn" onclick="openCamScan(&#39;mv-lbl&#39;)">📷 Quét bằng Camera</button></div>
           <button class="btn btn-p btn-sm" onclick="mvStep1()" style="width:100%">✓ Nhập thủ công</button>
         </div>
         <div id="mv-s2" class="hidden">
           <div id="mv-info" class="alert ai" style="margin-bottom:9px;"></div>
-          <div class="scanbox"><input type="text" id="mv-loc" placeholder="📷 Scan vị trí mới → tự lưu ngay..." oninput="mvLocInput(this)" onkeydown="if(event.key===&#39;Enter&#39;)mvSave()"><p>Bắn vị trí → tự lưu | Enter cũng lưu</p></div>
+          <div class="scanbox"><input type="text" id="mv-loc" placeholder="📷 Scan vị trí mới → tự lưu ngay..." oninput="mvLocInput(this)" onkeydown="if(event.key===&#39;Enter&#39;)mvSave()"><p>Bắn vị trí → tự lưu | Enter cũng lưu</p><button type="button" class="cam-btn" onclick="openCamScan(&#39;mv-loc&#39;)">📷 Quét bằng Camera</button></div>
           <div style="display:flex;gap:7px;margin-top:6px;">
             <button class="btn btn-o btn-sm" onclick="resetMv()">← Quay lại</button>
             <button class="btn btn-p btn-sm" style="flex:1" onclick="mvSave()">✓ Lưu thủ công</button>
@@ -477,7 +540,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
         </div>
         <div id="is-mode-hint-all" class="alert ad" style="margin-bottom:10px;font-size:11px;">🔴 <strong>Xuất hết:</strong> Scan tem → tự động xuất toàn bộ tồn, không cần ấn thêm.</div>
         <div id="is-mode-hint-part" class="alert ai hidden" style="margin-bottom:10px;font-size:11px;">✂️ <strong>Xuất lẻ:</strong> Scan tem → nhập số lượng cần xuất → xác nhận. Tự tạo tem mới cho số còn lại.</div>
-        <div id="is-s1"><div class="scanbox"><input type="text" id="is-lbl" placeholder="📷 Scan mã tem cần xuất..." oninput="autoTrig(this,&#39;is-lbl&#39;,isStep1,240)"><p>Scan tem trên hàng</p></div></div>
+        <div id="is-s1"><div class="scanbox"><input type="text" id="is-lbl" placeholder="📷 Scan mã tem cần xuất..." oninput="autoTrig(this,&#39;is-lbl&#39;,isStep1,240)"><p>Scan tem trên hàng</p><button type="button" class="cam-btn" onclick="openCamScan(&#39;is-lbl&#39;)">📷 Quét bằng Camera</button></div></div>
         <div id="is-s2" class="hidden">
           <div id="is-info" class="alert ai" style="margin-bottom:8px;"></div>
           <div id="is-fifo" class="alert aw hidden" style="margin-bottom:8px;"></div>
@@ -731,12 +794,12 @@ Vít M6x20mm" style="height:60px;background:#fff;"></textarea>
           <div class="ch"><span class="ct">📷 Scan kiểm kê</span></div>
           <div class="alert apr" style="margin-bottom:9px;font-size:11px;">💡 <strong>Bắn tem → tự sang quét vị trí → tự ghi nhận</strong> vào danh sách bên phải.</div>
           <div id="st-step1">
-            <div class="scanbox"><input type="text" id="st-scan" placeholder="📷 Bắn mã tem QR..." oninput="stAutoTrig(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();clearTimeout(stScT['lbl']);guardedSave('st-scan',stScan1);}" autofocus=""><p>Bắn tem → tự nhảy sang vị trí</p></div>
+            <div class="scanbox"><input type="text" id="st-scan" placeholder="📷 Bắn mã tem QR..." oninput="stAutoTrig(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();clearTimeout(stScT['lbl']);guardedSave('st-scan',stScan1);}" autofocus=""><p>Bắn tem → tự nhảy sang vị trí</p><button type="button" class="cam-btn" onclick="openCamScan('st-scan')">📷 Quét bằng Camera</button></div>
             <div id="st-scan-hint" class="alert ai hidden" style="font-size:11px;margin-top:6px;"></div>
           </div>
           <div id="st-step2" class="hidden">
             <div id="st-info" class="alert ai" style="margin-bottom:8px;font-size:11px;"></div>
-            <div class="scanbox"><input type="text" id="st-loc" placeholder="📷 Bắn vị trí kho → tự lưu..." oninput="stLocAutoTrig(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();clearTimeout(stScT['loc']);guardedSave('st-loc',stConfirm);}"><p>Đủ 9 ký tự → tự lưu | Trên 9 ký tự → Enter hoặc bấm "Xác nhận"</p></div>
+            <div class="scanbox"><input type="text" id="st-loc" placeholder="📷 Bắn vị trí kho → tự lưu..." oninput="stLocAutoTrig(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();clearTimeout(stScT['loc']);guardedSave('st-loc',stConfirm);}"><p>Đủ 9 ký tự → tự lưu | Trên 9 ký tự → Enter hoặc bấm "Xác nhận"</p><button type="button" class="cam-btn" onclick="openCamScan('st-loc')">📷 Quét bằng Camera</button></div>
             <div style="display:flex;gap:6px;margin-top:5px;">
               <button class="btn btn-p btn-sm" onclick="clearTimeout(stScT['loc']);guardedSave('st-loc',stConfirm)" style="flex:1;">✓ Xác nhận</button>
               <button class="btn btn-o btn-sm" onclick="stReset()" style="flex:1;">✕ Hủy — quét lại tem</button>
@@ -3041,6 +3104,94 @@ window.onload=()=>{
   renderTodayLbls();
   gp('dashboard');
 };
+
+// ===================== MOBILE SIDEBAR (drawer) =====================
+function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sb-overlay').classList.add('show');}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sb-overlay').classList.remove('show');}
+// Tự đóng menu khi chọn 1 mục trên điện thoại (không ảnh hưởng desktop vì overlay ẩn sẵn)
+(function(){
+  const _gp=gp;
+  window.gp=function(p){_gp(p);closeSidebar();};
+})();
+
+// ===================== CAMERA QR SCANNER (html5-qrcode) =====================
+let _camScanner=null;      // instance Html5Qrcode đang chạy
+let _camTargetId=null;     // id ô input sẽ nhận kết quả quét
+let _camList=[];           // danh sách camera trên máy
+let _camIdx=0;             // camera đang dùng (0 = mặc định sau khi ưu tiên camera sau)
+
+function openCamScan(targetId){
+  _camTargetId=targetId;
+  document.getElementById('cam-modal').classList.remove('hidden');
+  document.getElementById('cam-hint').textContent='📷 Đang mở camera...';
+  startCamScanner();
+}
+function closeCamScan(){
+  document.getElementById('cam-modal').classList.add('hidden');
+  stopCamScanner();
+}
+async function startCamScanner(){
+  if(typeof Html5Qrcode==='undefined'){
+    document.getElementById('cam-hint').textContent='❌ Không tải được thư viện quét camera (kiểm tra kết nối mạng).';
+    return;
+  }
+  try{
+    if(!_camScanner)_camScanner=new Html5Qrcode('cam-reader');
+    if(_camList.length===0){
+      _camList=await Html5Qrcode.getCameras();
+      // Ưu tiên camera sau (môi trường/rear) nếu tìm thấy trong tên
+      const backIdx=_camList.findIndex(c=>/back|rear|environment/i.test(c.label));
+      _camIdx=backIdx>=0?backIdx:0;
+    }
+    const camId=_camList.length?_camList[_camIdx].id:{facingMode:'environment'};
+    await _camScanner.start(
+      camId,
+      {fps:12,qrbox:{width:250,height:250},aspectRatio:1.0},
+      (decodedText)=>{ onCamDecoded(decodedText); },
+      ()=>{ /* lỗi từng frame — bỏ qua, còn đang tìm mã */ }
+    );
+    document.getElementById('cam-hint').textContent='📷 Đưa mã QR vào giữa khung hình';
+  }catch(err){
+    document.getElementById('cam-hint').textContent='❌ Không mở được camera: '+(err&&err.message?err.message:err)+' — Hãy cấp quyền Camera cho trang này.';
+  }
+}
+function stopCamScanner(){
+  if(_camScanner){
+    _camScanner.stop().then(()=>_camScanner.clear()).catch(()=>{});
+  }
+}
+async function switchCamera(){
+  if(_camList.length<2)return;
+  _camIdx=(_camIdx+1)%_camList.length;
+  try{
+    await _camScanner.stop();
+    await startCamScanner();
+  }catch(e){}
+}
+function onCamDecoded(text){
+  if(!_camTargetId)return;
+  // Khoá tạm để không bắt trùng nhiều frame liên tiếp cho cùng 1 mã
+  if(_camDecodeLock)return;_camDecodeLock=true;setTimeout(()=>{_camDecodeLock=false;},1200);
+  const el=document.getElementById(_camTargetId);
+  if(el){
+    el.value=text.trim();
+    el.focus();
+    // Bắn sự kiện input để kích hoạt đúng luồng xử lý sẵn có (autoTrig/recvLocInput/mvLocInput/stAutoTrig...)
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  closeCamScan();
+}
+let _camDecodeLock=false;
 </script>
+
+<!-- ================= CAMERA SCAN MODAL ================= -->
+<div class="mo hidden" id="cam-modal">
+  <div class="md">
+    <div class="mh"><h3>📷 Quét mã QR</h3><button class="xb" onclick="closeCamScan()">✕</button></div>
+    <div id="cam-reader"></div>
+    <div id="cam-hint">Đang mở camera...</div>
+    <div class="cam-switch"><button class="btn btn-o" style="flex:1;color:#fff;border-color:#444;" onclick="switchCamera()">🔄 Đổi camera</button><button class="btn btn-d" style="flex:1;" onclick="closeCamScan()">Đóng</button></div>
+  </div>
+</div>
 
 </body></html>
